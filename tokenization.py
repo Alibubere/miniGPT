@@ -13,7 +13,7 @@ class SimpleBPE:
         self.vocab = {i:ch for i , ch in enumerate(char)}
         self.inverse_vocab = {ch:i for i , ch in self.vocab.items()}
 
-        token_ids = [self.inverse_vocab(ch) for ch in text]
+        token_ids = [self.inverse_vocab[ch] for ch in text]
 
         while len(self.vocab) < vocab_size:
             pairs = Counter(zip(token_ids,token_ids[1:]))
