@@ -2,7 +2,7 @@ import logging
 import os
 from tokenization import SimpleBPE
 import torch
-
+from data_prep.prepare import prepare_data
 # hyperparameters
 batch_size = 64 # how many independent sequences will we process in parallel?
 block_size = 256 # what is the maximum context length for predictions?
@@ -42,14 +42,7 @@ def log_setup():
 def main():
 
     log_setup()
-
-    tokenizer = SimpleBPE()
-    tokenizer.train(text=text,vocab_size=1000)
-
-    data = torch.tensor(tokenizer.encode(text),dtype=torch.long)
-
-    print(len(data))
-    print(data[:100])
+    prepare_data("input.txt","data",train_file_name="train.bin",val_file_name='val.bin',vocab_size=vocab_size)
 
 
 
