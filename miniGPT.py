@@ -6,6 +6,8 @@ from data_prep.prepare import prepare_data
 from data_prep.dataset import MemmapDataset
 from data_prep.dataloader import get_dataloader
 from model import GPT, GPTConfig
+from model_utils.train_loop import train_loop
+from model_utils.training_utils import get_cosine_schedule_with_warmup
 
 # hyperparameters
 batch_size = 64  # how many independent sequences will we process in parallel?
@@ -20,12 +22,19 @@ n_embd = 384
 n_head = 6
 n_layer = 6
 dropout = 0.2
+resume = True
+num_epochs = 50
+weight_decay = 0.005
 
 # files
 file_name = "input.txt"
 data_dir = "data"
 train_file_name = "train.bin"
 val_file_name = "val.bin"
+model_dir = "models"
+os.makedirs(model_dir, exist_ok=True)
+latest_path = os.path.join(model_dir, "latest.pth")
+best_path = os.path.join(model_dir, "best.pth")
 
 
 def log_setup():
@@ -91,11 +100,41 @@ def main():
         n_embd=n_embd,
         dropout=dropout,
     )
-    model = GPT(gptconfig)
+    model = GPT(gptconfig).to(device)
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=learning_rate,
+        weight_decay=weight_decay,
+        betas=(0.9, 0.95),
+    )
+    num_training_steps = num_epochs * len(train_loader)
+    num_warmup_steps = int(0.05 * num_training_steps)
+
+    scheduler = get_cosine_schedule_with_warmup(
+        optimizer=optimizer,
+        num_warmup_steps=num_warmup_steps,
+        num_training_steps=num_training_steps,
+    )
+    scaler = torch.amp.GradScaler(device="cuda")
 
     logging.info(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
     logging.info(f"Training on: {device}")
     logging.info(f"Train batches: {len(train_loader)}, Val batches: {len(val_loader)}")
+
+    train_loop(
+        resume=resume,
+        num_epochs=num_epochs,
+        latest_path=latest_path,
+        best_path=best_path,
+        model=model,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        scaler=scaler,
+        device=device,
+        train_dataloader=train_loader,
+        val_dataloader=val_loader,
+        use_amp=True,
+    )
 
 
 if __name__ == "__main__":
