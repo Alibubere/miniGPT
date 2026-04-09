@@ -8,6 +8,8 @@ from data_prep.dataloader import get_dataloader
 from model import GPT, GPTConfig
 from model_utils.train_loop import train_loop
 from model_utils.training_utils import get_cosine_schedule_with_warmup
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
 
 # hyperparameters
 batch_size = 64  # how many independent sequences will we process in parallel?
@@ -120,7 +122,7 @@ def main():
     logging.info(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
     logging.info(f"Training on: {device}")
     logging.info(f"Train batches: {len(train_loader)}, Val batches: {len(val_loader)}")
-
+    model = torch.compile(model=model,backend="aot_eager")
     train_loop(
         resume=resume,
         num_epochs=num_epochs,

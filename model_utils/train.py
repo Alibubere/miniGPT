@@ -1,7 +1,6 @@
 import torch
 import logging
 from torch import amp
-import os
 
 
 def train_one_epoch(
