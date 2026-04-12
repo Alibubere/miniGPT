@@ -2,7 +2,7 @@ import logging
 import os
 import numpy as np
 import torch
-from data_prep.prepare import prepare_data
+from data_prep.prepare_fineweb import prepare_fineweb
 from data_prep.dataset import MemmapDataset
 from data_prep.dataloader import get_dataloader
 from model import GPT, GPTConfig
@@ -13,14 +13,14 @@ torch._dynamo.config.suppress_errors = True
 
 # hyperparameters
 batch_size = 64  # how many independent sequences will we process in parallel?
-block_size = 256  # what is the maximum context length for predictions?
+block_size = 1024  # what is the maximum context length for predictions?
 max_iters = 5000
-vocab_size = 1000
+vocab_size = 50304
 eval_interval = 500
 learning_rate = 3e-4
 device = "cuda" if torch.cuda.is_available() else "cpu"
 eval_iters = 200
-n_embd = 384
+n_embd = 786
 n_head = 6
 n_layer = 6
 dropout = 0.2
@@ -59,13 +59,7 @@ def main():
 
     log_setup()
     dtype = np.uint16 if vocab_size <= 65535 else np.uint32
-    tokenizer, train_path, val_path = prepare_data(
-        file_name,
-        data_dir,
-        train_file_name=train_file_name,
-        val_file_name=val_file_name,
-        vocab_size=vocab_size,
-    )
+    tokenizer = prepare_fineweb(data_dir)
     train_dataset = MemmapDataset(
         data_dir=data_dir, block_size=block_size, split="train", dtype=dtype
     )
