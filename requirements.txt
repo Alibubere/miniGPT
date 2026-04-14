@@ -1,0 +1,6 @@
+datasets==2.18.0
+pyarrow==12.0.1
+datatrove
+huggingface_hub
+transformers
+tokenizers
