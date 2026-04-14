@@ -129,7 +129,7 @@ class SimpleBPE:
                     i += 1
             token_ids = new_tokens
 
-        return new_tokens
+        return token_ids
 
     def decode(self, token_ids: list[int]):
         """
