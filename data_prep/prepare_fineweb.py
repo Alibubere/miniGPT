@@ -2,47 +2,12 @@ from datasets import load_dataset
 import numpy as np
 import os
 import logging
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from tokenization import SimpleBPE
-
-
-def train_tokenizer_on_sample(
-    dataset,
-    vocab_size=8000,          
-    sample_docs=10_000,       # use 10k docs to train the tokenizer
-    vocab_path="data/vocab.json",
-    merges_path="data/merges.json",
-):
-    """Sample docs from the stream, train BPE, save and return tokenizer."""
-
-    if os.path.exists(vocab_path) and os.path.exists(merges_path):
-        logging.info("Found existing tokenizer. Loading...")
-        tokenizer = SimpleBPE()
-        tokenizer.load_vocab_and_merges(vocab_path, merges_path)
-        return tokenizer
-
-    logging.info(f"Collecting {sample_docs:,} docs to train tokenizer...")
-    sample_text = []
-    for i, example in enumerate(dataset):
-        sample_text.append(example["text"])
-        if i >= sample_docs:
-            break
-
-    combined = "\n".join(sample_text)
-    logging.info(f"Tokenizer training text: {len(combined):,} chars")
-
-    tokenizer = SimpleBPE()
-    tokenizer.train(combined, vocab_size=vocab_size)
-    tokenizer.save_vocab_and_merges(vocab_path, merges_path)
-    logging.info(f"Tokenizer trained. Vocab size: {len(tokenizer.vocab)}")
-
-    return tokenizer
+from transformers import GPT2TokenizerFast
 
 
 def prepare_fineweb(
     data_dir,
-    vocab_size=8000,
+    vocab_size=50304,          # ignored now, GPT2 tokenizer has fixed 50257 vocab
     num_train_tokens=500_000_000,
     val_tokens_target=100_000,
 ):
@@ -50,38 +15,24 @@ def prepare_fineweb(
 
     train_path = os.path.join(data_dir, "train.bin")
     val_path = os.path.join(data_dir, "val.bin")
-    vocab_path = os.path.join(data_dir, "vocab.json")
-    merges_path = os.path.join(data_dir, "merges.json")
 
-    logging.info("Loading dataset stream for tokenizer training...")
-    dataset_for_tokenizer = load_dataset(
-        "HuggingFaceFW/fineweb-edu",
-        name="sample-10BT",
-        split="train",
-        streaming=True,
-    )
-
-    tokenizer = train_tokenizer_on_sample(
-        dataset=dataset_for_tokenizer,
-        vocab_size=vocab_size,
-        vocab_path=vocab_path,
-        merges_path=merges_path,
-    )
+    tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+    eos_id = tokenizer.eos_token_id  # 50256
 
     if os.path.exists(train_path) and os.path.exists(val_path):
         logging.info("Binary data already exists. Skipping tokenization.")
         return tokenizer
 
-    logging.info("Loading fresh dataset stream for data preparation...")
-    dataset_for_data = load_dataset(
+    logging.info("Loading dataset stream...")
+    dataset = load_dataset(
         "HuggingFaceFW/fineweb-edu",
         name="sample-10BT",
         split="train",
         streaming=True,
     )
 
-    dtype = np.uint16 if vocab_size <= 65535 else np.uint32
-    CHUNK_SIZE = 1000000
+    dtype = np.uint16  # GPT2 vocab (50257) fits in uint16
+    CHUNK_SIZE = 1_000_000
 
     train_buffer = []
     val_buffer = []
@@ -100,16 +51,9 @@ def prepare_fineweb(
 
     logging.info("Tokenizing and writing binary files...")
 
-    for example in dataset_for_data:
-        try:
-            ids = tokenizer.encode(example["text"])
-        except KeyError:
-            doc_count += 1
-            continue
-
-        if len(ids) == 0:
-            doc_count += 1
-            continue
+    for example in dataset:
+        ids = tokenizer.encode(example["text"], add_special_tokens=False)
+        ids.append(eos_id)
 
         if not val_done:
             val_buffer.extend(ids)
